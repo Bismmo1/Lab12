@@ -1,5 +1,5 @@
 
-local url = "https://cedar.fogcloud.org/api/logs/68F"
+local url = "https://cedar.fogcloud.org/api/logs/d5A5"
 
 
 print("Checking URL")
