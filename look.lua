@@ -1,8 +1,7 @@
 -- CONFIGURATION
--- Add your specific block names here
 local t = 0
 local linesScanned = 0
-local url = "https://cedar.fogcloud.org/api/logs/7E25"
+local url = "https://cedar.fogcloud.org/api/logs/F0A0"
 
 local colorMap = {
     ["minecraft:white_wool"] = "0",
@@ -12,119 +11,104 @@ local colorMap = {
     ["minecraft:yellow_wool"] = "4",
 }
 
--- ... (go() function remains the same) ...
-local function go()
-    local success, message = turtle.forward()
+-- FIXED: go() now accepts 'val' (the number to upload)
+local function go(val)
+    -- Use the passed value 'val', not the invisible 'number'
+    local body = "line=" .. tostring(val)
+    
+    print("Uploading: " .. body)
+    local response, message = http.post(url, body)
+    
+    if response then
+        -- response.close() -- Good practice to close, but keeping it simple
+        response.close()
+    else
+        print("Upload failed: " .. tostring(message))
+    end
+
+    -- Move after uploading
+    local success, move_msg = turtle.forward()
     if success then
         t = t + 1
     end
-    return success, message
+    return success, move_msg
 end
 
--- ... (back() function is the modified version above) ...
+-- BACK FUNCTION (Kept exactly as you had it)
 local function back()
-    -- 1. Turn 180 degrees
     turtle.turnRight()
     turtle.turnRight()
-
-    -- 2. Travel back along the scanned line (t steps)
     for i = 1, t do
         turtle.forward()
     end
-
-    -- 3. Turn 90 degrees to face the next line
     turtle.turnLeft()
-
-    -- NOTE: We return the current 't' count so the turtle can move sideways
-    -- The actual sideways move will be handled in the main loop.
     local current_t = t
-    t = 0 -- Reset 't' for the new line
-    linesScanned = linesScanned + 1 -- Increment the line counter
+    t = 0 
+    linesScanned = linesScanned + 1 
     return current_t
 end
 
 
 print("Starting Scan...")
 
--- NEW: Variable to track if the whole program should stop
 local should_stop_program = false
 
 while true do
-    -- Check if a stop signal was raised from the previous line scan
-    if should_stop_program then
-        break -- Exit the main loop if signaled
-    end
+    if should_stop_program then break end
 
-    -- 1. Scan the block below (Start of new line)
+    -- 1. Scan start of the line
     local success, data = turtle.inspectDown()
-
-    -- 2. Initial Stop Check: Invalid block found at the start of a line
+    
     if not success or not data or not colorMap[data.name] then
-        print("Invalid block found below new starting position: stopping scan.")
-        break -- Exit the main loop
+        print("Invalid start block. Stopping.")
+        break 
     end
 
-    -- Print the color for the starting block
-    local number = colorMap[data.name]
-    print(number)
+    -- Get the CURRENT number
+    local currentNumber = colorMap[data.name]
+    print("Start of line color: " .. currentNumber)
 
-    -- LINE SCAN LOOP: Scans along the current line
+    -- LINE SCAN LOOP
     while true do
 
-        -- 3. Move forward to the next block
-        local move_success = go()
+        -- 2. Call go() WITH the current number
+        local move_success = go(currentNumber)
 
-        -- 4. Check for End-of-Line Conditions
-        local line_break_reason = nil -- nil, "wall", or "invalid_block"
+        local line_break_reason = nil 
 
         if not move_success then
-            -- A. Turtle hit a WALL
-            print("Path blocked! Starting return sequence.")
+            print("Hit wall. Returning.")
             line_break_reason = "wall"
         else
-            -- B. Inspect the new block
+            -- 3. We moved forward! Now we must Scan the NEW block
             local scan_success, scan_data = turtle.inspectDown()
 
             if not scan_success or not scan_data or not colorMap[scan_data.name] then
-                -- C. Found an invalid block mid-line
-                print("Invalid block found mid-line. Starting return sequence.")
+                print("Invalid block mid-line. Returning.")
                 line_break_reason = "invalid_block"
             else
-                -- D. Move was successful, and the next block is valid. Continue scan.
-                local body = "line=" .. tostring(number)
-                print(colorMap[scan_data.name])
-                print("url" .. url)
-        	print("Uploading: " .. body)
-        	local response,message = http.post(url, body)
-        
-        
-        	if response then
-           	 print("Success!")
-          	  response.close()
-       		else
-          	  print("Upload failed." .. message)
-            
-        	end
-                -- Continue the inner loop
+                -- IMPORTANT: Update currentNumber so the NEXT go() uses the new color
+                currentNumber = colorMap[scan_data.name]
             end
         end
 
-        -- Execute End-of-Line Logic if a break reason was set
+        -- 4. Handle Return Trip
         if line_break_reason then
-            back() -- Prepare the turtle (move back to the start side)
+            back() 
 
-            -- Perform sideways move
+            -- Move Sideways to next row
             local sidemove_success = turtle.forward()
 
             if not sidemove_success then
-                print("Cannot move sideways (Wall detected at edge). Stopping program.")
-                should_stop_program = true -- Signal the outer loop to stop
+                print("Cannot move sideways. Done.")
+                should_stop_program = true 
+            else
+                turtle.turnLeft() -- Face the new row
             end
-
-            turtle.turnLeft()
-            break -- Breaks the inner 'while true do' line scan loop
+            
+            break -- Break inner loop to restart outer loop
         end
     end
 end
 
-print("Finished scanning. Total lines scanned: " .. linesScanned)
+print("Finished. Lines: " .. linesScanned)
