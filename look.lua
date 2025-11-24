@@ -2,6 +2,7 @@
 -- Add your specific block names here
 local t = 0
 local linesScanned = 0
+local url = "https://cedar.fogcloud.org/api/logs/7E25"
 
 local colorMap = {
     ["minecraft:white_wool"] = "0",
@@ -90,7 +91,20 @@ while true do
                 line_break_reason = "invalid_block"
             else
                 -- D. Move was successful, and the next block is valid. Continue scan.
+                local body = "line=" .. tostring(number)
                 print(colorMap[scan_data.name])
+                print("url" .. url)
+        	print("Uploading: " .. body)
+        	local response,message = http.post(url, body)
+        
+        
+        	if response then
+           	 print("Success!")
+          	  response.close()
+       		else
+          	  print("Upload failed." .. message)
+            
+        	end
                 -- Continue the inner loop
             end
         end
